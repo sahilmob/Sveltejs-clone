@@ -11,13 +11,13 @@ fs.writeFileSync("./app.js", js, "utf-8");
 function parse() {
   let i = 0;
   const ast = {};
-  ast.html = parseFragments();
+  ast.html = parseFragments(() => i < content.length);
 
   return ast;
 
-  function parseFragments() {
+  function parseFragments(condition) {
     const fragments = [];
-    while (i < content.length) {
+    while (condition()) {
       const fragment = parseFragment();
       if (fragment) {
         fragments.push(fragment);
@@ -38,8 +38,31 @@ function parse() {
       eat("</script>");
     }
   }
-  function parseElement() {}
-  function parseAttributesList() {}
+  function parseElement() {
+    if (match("<")) {
+      eat("<");
+      const tagName = readWhileMatching(/[a-z]/);
+      const attributes = parseAttributesList();
+      eat(">");
+
+      const endTag = `</${tagName}>`;
+
+      const element = {
+        type: "Element",
+        name: tagName,
+        attributes,
+        children: parseFragments(() => !match(endTag)),
+      };
+
+      eat(endTag);
+
+      return element;
+    }
+  }
+  function parseAttributesList() {
+    const attributes = [];
+    skipWhiteSpaces();
+  }
   function parseExpression() {}
   function parseText() {}
   function parseJavascript() {}
@@ -63,6 +86,10 @@ function parse() {
     }
 
     return content.slice(startIndex, i);
+  }
+
+  function skipWhiteSpaces() {
+    readWhileMatching(/[\s\n]]/);
   }
 }
 function analyze(ast) {}
