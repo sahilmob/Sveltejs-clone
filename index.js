@@ -25,9 +25,11 @@ function parse() {
     }
     return fragments;
   }
+
   function parseFragment() {
     return parseScripts() ?? parseElement() ?? parseExpression() ?? parseText();
   }
+
   function parseScripts() {
     if (match("<script>")) {
       eat("<script>");
@@ -35,9 +37,11 @@ function parse() {
       const endIndex = content.indexOf("</script>", i);
       const code = content.slice(startIndex, endIndex);
       ast.script = acorn.parse(code, { ecmaVersion: 2022 });
+      i = endIndex;
       eat("</script>");
     }
   }
+
   function parseElement() {
     if (match("<")) {
       eat("<");
@@ -59,13 +63,58 @@ function parse() {
       return element;
     }
   }
+
   function parseAttributesList() {
     const attributes = [];
     skipWhiteSpaces();
+
+    while (!match(">")) {
+      attributes.push(parseAttribute());
+      skipWhiteSpaces();
+    }
+
+    return attributes;
   }
-  function parseExpression() {}
-  function parseText() {}
-  function parseJavascript() {}
+
+  function parseAttribute() {
+    const name = readWhileMatching(/[^=]/);
+    eat("={");
+    const value = parseJavascript();
+    eat("}");
+
+    return {
+      type: "Attribute",
+      name,
+      value,
+    };
+  }
+
+  function parseExpression() {
+    if (match("{")) {
+      eat("{");
+      const expression = parseJavascript();
+      eat("}");
+      return {
+        type: "Expression",
+        expression,
+      };
+    }
+  }
+
+  function parseText() {
+    const text = readWhileMatching(/[^<{]/);
+    if (text.trim() !== "") {
+      return {
+        type: "Text",
+        value: text,
+      };
+    }
+  }
+  function parseJavascript() {
+    const js = acorn.parseExpressionAt(content, i, { ecmaVersion: 2020 });
+    i = js.end;
+    return js;
+  }
 
   function match(str) {
     return content.slice(i, i + str.length) === str;
@@ -75,13 +124,18 @@ function parse() {
     if (match(str)) {
       i += str.length;
     } else {
-      throw new Error(`Parse error: expecting "${str}"`);
+      throw new Error(
+        `Parse error: expecting "${str}" got "${content.slice(
+          i,
+          i + str.length
+        )}"`
+      );
     }
   }
 
   function readWhileMatching(regex) {
     let startIndex = i;
-    while (regex.text(content[i])) {
+    while (i < content.length && regex.test(content[i])) {
       i++;
     }
 
@@ -89,7 +143,7 @@ function parse() {
   }
 
   function skipWhiteSpaces() {
-    readWhileMatching(/[\s\n]]/);
+    readWhileMatching(/[\s\n]/);
   }
 }
 function analyze(ast) {}
